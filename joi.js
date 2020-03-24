@@ -27,13 +27,14 @@ const init = async () => {
                 params: Joi.object({
                     name: Joi.string().min(3).max(10)
                 })
-            }
+            }, description: 'tags to API operation can be handled differently by tools & libraries'
         }
     });
 
     const swaggerOptions = {
         info: {
                 title: 'Test API Documentation',
+                description: 'This is a sample example of API documentation.',
                 version: Pack.version,
             },
         };
