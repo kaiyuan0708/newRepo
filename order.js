@@ -8,6 +8,49 @@ const Joi = require('@hapi/joi');
 const Inert = require('@hapi/inert');
 const Pack = require('./package');
 const sql = require( "./sql" );
+const JWT = require('jsonwebtoken'); 
+const lib = require('./hapi-auth-jwt2/lib');
+//const redis = require('redis');
+
+
+
+const secret = 'NeverShareYourSecret';
+const people = { // our "users database"
+    1: {
+      id: 1,
+      name: 'Kai Yuan',
+      scope:'admin'
+    },
+    2: {
+        id: 2,
+        name: 'Candy Ng',
+        scope:'superadmin'
+      }
+};
+const token = JWT.sign(people[1], secret); 
+const token2 = JWT.sign(people[2], secret);
+console.log(token,people[1]);
+console.log(token2,people[2]);
+
+
+
+
+const validate = async function (decoded, request, h) {
+    console.log(" - - - - - - - decoded token:");
+  console.log(decoded);
+  console.log(" - - - - - - - request info:");
+  console.log(request.info);
+  console.log(" - - - - - - - user agent:");
+  console.log(request.headers['user-agent']);
+
+    // do your checks to see if the person is valid
+    if (!people[decoded.id]) {
+      return { isValid: false };
+    }
+    else {
+      return { isValid: true };
+    }
+};
 
 const createServer = async () => {
   const server = Hapi.server( {
@@ -34,11 +77,20 @@ const init = async () => {
         sql,
         Inert,
         Vision,
+        lib,
         {
             plugin: HapiSwagger,
             options: swaggerOptions
         }
     ]);
+
+    server.auth.strategy('jwt', 'jwt',
+    { key: 'NeverShareYourSecret', // Never Share your secret key
+      validate, // validate function defined above
+      verifyOptions: { algorithms: [ 'HS256' ] }
+    });
+
+    server.auth.default('jwt');
 
     await server.start();
     console.log( "Server running on %s", server.info.uri );
@@ -57,7 +109,15 @@ const init = async () => {
                 return "order(s) fail to display";
             }
         },options: {
-            tags: ['api']
+            description: 'Display All Orders',
+            notes: 'Display all order details',
+            tags: ['api'],
+            auth:{
+                strategy: 'jwt',
+                access: [{         // you can configure different access for each route
+                    scope:[`superadmin`] // each access can define a set of scopes with type prefix ('+','-' or empty)
+                  }]
+            }
         }
     });
 
@@ -75,7 +135,13 @@ const init = async () => {
                 return "order entered not found";
             }
         },options: {
-            tags: ['api']
+            description: 'Display Specific Order Details',
+            notes: 'Display order details by getting order id from url',
+            tags: ['api'],
+            auth:{
+                scope:[`admin`,`superadmin`]
+            }
+
         }
     });
 
@@ -101,6 +167,9 @@ const init = async () => {
         },
         options: {
             tags: ['api'],
+            auth:{
+                mode:'optional'
+            },
             validate: {
                 payload: Joi.object({
                     orderid: Joi.string(),
@@ -133,6 +202,9 @@ const init = async () => {
             }
         },options: {
             tags: ['api'],
+            auth: {
+                mode:`optional`
+            },
             validate: {
                 payload: Joi.object({
                     existorderid: Joi.string(),
@@ -149,11 +221,12 @@ const init = async () => {
     //delete
     server.route({
         method: "DELETE",
-        path: "/deleteOrder/{orderid}",
+        path: "/deleteOrder/{order_id}",
         //path: "/deleteOrder",
         handler: async ( request, h ) => {
             try {
-                const deleteOrder = await h.sql`DELETE FROM public.orders WHERE order_id = ${request.params.orderid}`;
+                const deleteOrder = await h.sql`DELETE FROM public.orders 
+                WHERE order_id = ${request.params.order_id}`;
                 //const deleteOrder = await h.sql`DELETE FROM public.orders ` ;
                 //return `Delete Order ${ request.params.orderid } sucess`;
                 return deleteOrder;
@@ -164,11 +237,33 @@ const init = async () => {
         },options: {
             description: 'Delete Order',
             notes: 'Delete order by getting order id from url',
-            tags: ['api']
+            tags: ['api'],
+            auth:{
+                scope:['superadmin']
+            }
         }
     });
+
+  
+    server.route([
+        {
+            method: "GET", path: "/", config: { auth: false },
+            handler: function(request, h) {
+            return 'Welcome';
+            }
+        },
+        {
+            method: 'GET', path: '/restricted', config: { auth: 'jwt' },
+            handler: function(request, h) {
+            const response = h.response({text: 'You used a Token!'});
+            response.header("Authorization", request.headers.authorization);
+            return response;
+            }
+        }
+        ]);
 };
   
+
 
 process.on( "unhandledRejection", ( err ) => {
   console.log( err );
