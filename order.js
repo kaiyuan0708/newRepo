@@ -12,7 +12,7 @@ const JWT = require('jsonwebtoken');
 const lib = require('./hapi-auth-jwt2/lib');
 //const redis = require('redis');
 
-
+//003
 
 const secret = 'NeverShareYourSecret';
 const people = { // our "users database"
@@ -32,9 +32,18 @@ const token2 = JWT.sign(people[2], secret);
 console.log(token,people[1]);
 console.log(token2,people[2]);
 
-
-
-
+//04 
+const redisClient = require('redis-connection')();
+redisClient.set('redis', 'working');
+redisClient.get('redis', function (rediserror, reply) {
+  if(rediserror) {
+    console.log(rediserror);
+  }
+  console.log('redis is ' +reply.toString()+"!!!"); // confirm we can access redis
+});
+const bcrypt = require('bcrypt');
+const Uuid = require('uuid');
+//003
 const validate = async function (decoded, request, h) {
     console.log(" - - - - - - - decoded token:");
   console.log(decoded);
@@ -57,7 +66,6 @@ const createServer = async () => {
     port: process.env.PORT || 8080,
     host: process.env.HOST || "localhost"
   } );
-
 
   return server;
 };
@@ -243,8 +251,103 @@ const init = async () => {
             }
         }
     });
+ 
 
-  
+    server.route({
+        method: "POST",
+        path: '/register',
+        handler: async ( request, h ) => {
+            try{
+                const { id,  email, pw } = request.payload;
+                const saltRounds =12;
+                const salt = bcrypt.genSaltSync(saltRounds);
+                const hash = bcrypt.hashSync(pw, salt);
+                const insert = await h.sql`INSERT INTO users 
+                (user_id,email,password)
+                 VALUES 
+                (${ id },${ email },${ hash })`;
+                //(${ id },${ email },${ pw })`;
+                return insert;
+                
+               //return hash;
+            }catch ( err ) {
+                console.log( err );
+                return "register fail";
+            }
+        },options:{
+            tags: ['api'],
+            auth:{
+                mode:'optional'
+            },
+            validate: {
+                payload: Joi.object({
+                    id: Joi.number()
+                    .integer()
+                    .min(1)
+                    .max(200),
+                    email: Joi.string(),
+                    pw: Joi.string()
+
+                }
+                )
+            }
+        }
+    });
+
+    server.route({
+        method: 'POST',
+        path: '/login',
+        handler: async ( request, h ) => {
+            let loginMsg = "";
+            try{
+                const { email, pw } = request.payload;
+                const getHash = await h.sql`SELECT password FROM users where email = ${email}`;
+                const password = `${ pw }`;
+                const hash = getHash[0].password;
+                const checkPW = bcrypt.compareSync(password, hash);
+                if(checkPW==true){
+                    loginMsg = "Welcome";
+                    const sid = Uuid.v4();
+                    console.log("sid= "+sid);
+
+                    try{
+                       const redisIn = redisClient.set(sid);
+                       redisClient.get(sid, function (rediserror, reply) {
+                        if(rediserror) {
+                          console.log(rediserror);
+                        }
+                        console.log('redis is ' +reply.toString()+"!!!"); // confirm we can access redis
+                      });
+                        return "loginSuccesful";
+                    }catch(err){
+                        console.log(err);
+                        return 
+                    }
+                }else{
+                    loginMsg = "Invalid Combination of Email and Password";
+                }
+                return loginMsg+getHash;
+            }catch ( err ) {
+                console.log( err );
+                return "login function error";
+            }
+        },options:{
+            tags: ['api'],
+            auth:{
+                mode:'optional'
+            },
+            validate: {
+                payload: Joi.object({
+                    email: Joi.string(),
+                    pw: Joi.string()
+
+                }
+                )
+            }
+        }
+    });
+
+    //003
     server.route([
         {
             method: "GET", path: "/", config: { auth: false },
@@ -260,7 +363,10 @@ const init = async () => {
             return response;
             }
         }
-        ]);
+    ]);
+
+    
+
 };
   
 
