@@ -1,3 +1,24 @@
+CREATE TABLE "public"."staff" (
+    "staff_id" SERIAL PRIMARY KEY,
+    "logon_id" varchar NOT NULL,
+    "logon_password" varchar NOT NULL,
+	"staff_name" varchar,
+    "email" varchar,
+	"last_logon_dt" timestamp,
+    "created_dt" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updated_dt" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	"user_type" varchar DEFAULT 'staff',
+    "suspend_login" boolean DEFAULT FALSE
+);
+
+CREATE TABLE "public"."session" (
+    "session_id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "staff_id" int8 NOT NULL REFERENCES staff (staff_id),
+    "ip_address" VARCHAR NOT NULL,
+    "created_dt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("session_id")
+);
+
 CREATE TABLE "public"."customer" (
     "customer_id" SERIAL PRIMARY KEY,
     "customer_full_name" varchar NOT NULL,
