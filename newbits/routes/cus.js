@@ -45,8 +45,8 @@ module.exports = [
             //return addAddress.rows[0]
 
             const addContact = await request.pgsql.query(
-                `INSERT INTO contact ("contact_number","customer_id") VALUES ($1, $2) RETURNING *;`,
-                [request.payload.contact,checkCustomer.rows[0].customer_id]
+                `INSERT INTO contact ("contact_number","customer_id","country_code") VALUES ($1, $2, $3) RETURNING *;`,
+                [request.payload.contact,checkCustomer.rows[0].customer_id,request.payload.country_code]
             )
             
             const addEmail = await request.pgsql.query(
